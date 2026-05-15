@@ -2,8 +2,7 @@
  * tests.c — unit-тесты для AVL-дерева
  *
  * Сборка:
- *   gcc -Wall -Wextra -o test_avl tests.c avl.c ../posting.c -I..
- *   ./test_avl
+ *   gcc -Wall -Wextra -o test_avl tests.c avl.c ../posting.c ../instruments/lab3/vector/generic.c -I.. ; ./test_avl
  *
  * Вывод:
  *   [PASS] / [FAIL] для каждого теста
@@ -17,22 +16,16 @@
 
 #include "avl.h"
 
-/* ──────────────────────────────────────────────
-   Мини-фреймворк
-   ────────────────────────────────────────────── */
-
 static int g_passed = 0;
 static int g_total  = 0;
 
-#define CHECK(cond) do {                                           \
-    g_total++;                                                     \
+#define CHECK(cond) do {                                          \
+    g_total++;                                                    \
     if (cond) { g_passed++; printf("[PASS] %s\n", #cond); }       \
     else       printf("[FAIL] %s  (line %d)\n", #cond, __LINE__); \
 } while(0)
 
-/* ──────────────────────────────────────────────
-   Вспомогательные функции
-   ────────────────────────────────────────────── */
+// Вспомогательные функции
 
 /* Проверяет AVL-инвариант рекурсивно; возвращает высоту или -1 при ошибке */
 static int check_avl_invariant(const AVLNode* n) {
@@ -69,9 +62,7 @@ static void count_visitor(const char* key, Vector* postings, void* ctx) {
     ((TraverseCtx*)ctx)->count++;
 }
 
-/* ──────────────────────────────────────────────
-   ТЕСТ 1: Создание и освобождение пустого дерева
-   ────────────────────────────────────────────── */
+//ТЕСТ 1: Создание и освобождение пустого дерева
 static void test_create_free(void) {
     printf("\n=== test_create_free ===\n");
     AVLTree* t = createAVLTree();
@@ -82,9 +73,7 @@ static void test_create_free(void) {
     CHECK(1); /* нет краша — дерево освободилось корректно */
 }
 
-/* ──────────────────────────────────────────────
-   ТЕСТ 2: Вставка одного ключа
-   ────────────────────────────────────────────── */
+// ТЕСТ 2: Вставка одного ключа
 static void test_single_insert(void) {
     printf("\n=== test_single_insert ===\n");
     AVLTree* t = createAVLTree();
@@ -107,9 +96,7 @@ static void test_single_insert(void) {
     freeAVLTree(t);
 }
 
-/* ──────────────────────────────────────────────
-   ТЕСТ 3: Дублирующийся ключ → дополнение posting list
-   ────────────────────────────────────────────── */
+// ТЕСТ 3: Дублирующийся ключ → дополнение posting list
 static void test_duplicate_key(void) {
     printf("\n=== test_duplicate_key ===\n");
     AVLTree* t = createAVLTree();
@@ -135,9 +122,7 @@ static void test_duplicate_key(void) {
     freeAVLTree(t);
 }
 
-/* ──────────────────────────────────────────────
-   ТЕСТ 4: Поиск несуществующего ключа
-   ────────────────────────────────────────────── */
+// ТЕСТ 4: Поиск несуществующего ключа
 static void test_search_missing(void) {
     printf("\n=== test_search_missing ===\n");
     AVLTree* t = createAVLTree();
@@ -153,9 +138,7 @@ static void test_search_missing(void) {
     freeAVLTree(t);
 }
 
-/* ──────────────────────────────────────────────
-   ТЕСТ 5: Правая ротация (Left-Left case)
-   ────────────────────────────────────────────── */
+// ТЕСТ 5: Правая ротация (Left-Left case)
 static void test_rotate_right(void) {
     printf("\n=== test_rotate_right (LL case) ===\n");
     AVLTree* t = createAVLTree();
@@ -175,9 +158,7 @@ static void test_rotate_right(void) {
     freeAVLTree(t);
 }
 
-/* ──────────────────────────────────────────────
-   ТЕСТ 6: Левая ротация (Right-Right case)
-   ────────────────────────────────────────────── */
+// ТЕСТ 6: Левая ротация (Right-Right case)
 static void test_rotate_left(void) {
     printf("\n=== test_rotate_left (RR case) ===\n");
     AVLTree* t = createAVLTree();
@@ -193,9 +174,7 @@ static void test_rotate_left(void) {
     freeAVLTree(t);
 }
 
-/* ──────────────────────────────────────────────
-   ТЕСТ 7: Left-Right ротация
-   ────────────────────────────────────────────── */
+// ТЕСТ 7: Left-Right ротация
 static void test_rotate_lr(void) {
     printf("\n=== test_rotate_lr (LR case) ===\n");
     AVLTree* t = createAVLTree();
@@ -211,9 +190,7 @@ static void test_rotate_lr(void) {
     freeAVLTree(t);
 }
 
-/* ──────────────────────────────────────────────
-   ТЕСТ 8: Right-Left ротация
-   ────────────────────────────────────────────── */
+// ТЕСТ 8: Right-Left ротация
 static void test_rotate_rl(void) {
     printf("\n=== test_rotate_rl (RL case) ===\n");
     AVLTree* t = createAVLTree();
@@ -229,9 +206,7 @@ static void test_rotate_rl(void) {
     freeAVLTree(t);
 }
 
-/* ──────────────────────────────────────────────
-   ТЕСТ 9: Массовая вставка — инвариант после каждой вставки
-   ────────────────────────────────────────────── */
+// ТЕСТ 9: Массовая вставка — инвариант после каждой вставки
 static void test_bulk_insert(void) {
     printf("\n=== test_bulk_insert ===\n");
 
@@ -265,9 +240,7 @@ static void test_bulk_insert(void) {
     freeAVLTree(t);
 }
 
-/* ──────────────────────────────────────────────
-   ТЕСТ 10: In-order обход даёт лексикографический порядок
-   ────────────────────────────────────────────── */
+// ТЕСТ 10: In-order обход даёт лексикографический порядок
 
 typedef struct { char prev[256]; int ordered; } OrderCtx;
 
@@ -305,18 +278,14 @@ static void test_inorder_traverse(void) {
     freeAVLTree(t);
 }
 
-/* ──────────────────────────────────────────────
-   ТЕСТ 11: freeAVLTree(NULL) не падает
-   ────────────────────────────────────────────── */
+// ТЕСТ 11: freeAVLTree(NULL) не падает
 static void test_free_null(void) {
     printf("\n=== test_free_null ===\n");
     freeAVLTree(NULL);
     CHECK(1); /* нет краша */
 }
 
-/* ──────────────────────────────────────────────
-   ТЕСТ 12: Высота дерева логарифмическая
-   ────────────────────────────────────────────── */
+// ТЕСТ 12: Высота дерева логарифмическая
 static void test_height_logarithmic(void) {
     printf("\n=== test_height_logarithmic ===\n");
 
@@ -337,9 +306,7 @@ static void test_height_logarithmic(void) {
     freeAVLTree(t);
 }
 
-/* ──────────────────────────────────────────────
-   main
-   ────────────────────────────────────────────── */
+// main
 int main(void) {
     printf("=== AVL Tree Tests ===\n");
 
