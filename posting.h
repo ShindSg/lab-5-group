@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../lab3/vector/generic.h"
+#include "instruments/lab3/vector/generic.h"
 
 #define MAX_TITLE_LEN 256
 
