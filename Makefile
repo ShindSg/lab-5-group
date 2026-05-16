@@ -12,7 +12,7 @@ app: $(OBJ_SHARED) main.o
 	$(CC) $(CFLAGS) -o app $(OBJ_SHARED) main.o
 
 test_avl: posting.o avl/avl.o avl/tests.o
-	$(CC) $(CFLAGS) -o test_avl posting.o avl/avl.o avl/tests.o
+	$(CC) $(CFLAGS) -o test_avl posting.o avl/avl.o avl/tests.o -lm
 
 test_rb: posting.o rbtree/rbtree.o rbtree/tests.o
 	$(CC) $(CFLAGS) -o test_rb posting.o rbtree/rbtree.o rbtree/tests.o
