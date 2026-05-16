@@ -96,7 +96,7 @@ static void save_visitor(const char* key, Vector* postings, void* ctx) {
     for (size_t i = 0; i < postings->size; i++) {
         PostingEntry* e = getVectorItem(postings, i);
 
-        /* Заменяем возможные переносы строк в заголовке на пробел */
+        // Заменяем возможные переносы строк в заголовке на пробел
         char safe_title[MAX_TITLE_LEN];
         strncpy(safe_title, e->title, MAX_TITLE_LEN - 1);
         safe_title[MAX_TITLE_LEN - 1] = '\0';
@@ -137,7 +137,7 @@ Index* loadIndex(const char* path, TreeType type) {
 
     char   term[MAX_TITLE_LEN];
     int    n_postings;
-    char   line[MAX_TITLE_LEN + 32]; /* doc_id (≤10 цифр) + пробел + title */
+    char   line[MAX_TITLE_LEN + 32]; // doc_id (≤10 цифр) + пробел + title
 
     while (fscanf(f, "%s %d\n", term, &n_postings) == 2) {
         for (int i = 0; i < n_postings; i++) {
@@ -146,10 +146,10 @@ Index* loadIndex(const char* path, TreeType type) {
                 goto done;
             }
 
-            /* Убираем завершающий '\n' */
+            // Убираем завершающий '\n'
             line[strcspn(line, "\n")] = '\0';
 
-            /* Разбиваем строку: первый токен — doc_id, остаток — title */
+            // Разбиваем строку: первый токен — doc_id, остаток — title
             char* space = strchr(line, ' ');
             if (!space) {
                 fprintf(stderr, "loadIndex: malformed line: %s\n", line);
