@@ -7,7 +7,7 @@
  * Вывод:
  *   [PASS] / [FAIL] для каждого теста
  *   Итоговый счёт: N/M passed
- */
+*/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,7 +27,7 @@ static int g_total  = 0;
 
 // Вспомогательные функции
 
-/* Проверяет AVL-инвариант рекурсивно; возвращает высоту или -1 при ошибке */
+// Проверяет AVL-инвариант рекурсивно; возвращает высоту или -1 при ошибке
 static int check_avl_invariant(const AVLNode* n) {
     if (!n) return 0;
 
@@ -36,15 +36,15 @@ static int check_avl_invariant(const AVLNode* n) {
     if (lh < 0 || rh < 0) return -1;
 
     int diff = lh - rh;
-    if (diff < -1 || diff > 1) return -1;   /* нарушение AVL */
+    if (diff < -1 || diff > 1) return -1;   // нарушение AVL
 
     int expected_height = 1 + (lh > rh ? lh : rh);
-    if (n->height != expected_height) return -1;  /* высота не согласована */
+    if (n->height != expected_height) return -1;  // высота не согласована
 
     return expected_height;
 }
 
-/* Проверяет BST-порядок рекурсивно */
+// Проверяет BST-порядок рекурсивно
 static int check_bst_order(const AVLNode* n,
                             const char* lo, const char* hi) {
     if (!n) return 1;
@@ -54,7 +54,7 @@ static int check_bst_order(const AVLNode* n,
         && check_bst_order(n->right, n->key, hi);
 }
 
-/* Контекст для подсчёта узлов при обходе */
+// Контекст для подсчёта узлов при обходе
 typedef struct { int count; } TraverseCtx;
 
 static void count_visitor(const char* key, Vector* postings, void* ctx) {
@@ -70,7 +70,8 @@ static void test_create_free(void) {
     CHECK(t->root == NULL);
     CHECK(t->size == 0);
     freeAVLTree(t);
-    CHECK(1); /* нет краша — дерево освободилось корректно */
+    int no_crash = 1;
+    CHECK(no_crash); // freeAVLTree завершился без падения
 }
 
 // ТЕСТ 2: Вставка одного ключа
@@ -105,7 +106,7 @@ static void test_duplicate_key(void) {
     avlInsert(t, "sort", 20, "Python sort() explained");
     avlInsert(t, "sort", 30, "Merge sort vs quicksort");
 
-    /* Размер дерева не меняется при дублировании ключа */
+    // Размер дерева не меняется при дублировании ключа
     CHECK(t->size == 1);
 
     Vector* pl = avlSearch(t, "sort");
@@ -143,7 +144,7 @@ static void test_rotate_right(void) {
     printf("\n=== test_rotate_right (LL case) ===\n");
     AVLTree* t = createAVLTree();
 
-    /* Вставляем в убывающем порядке → LL-разбалансировка */
+    // Вставляем в убывающем порядке → LL-разбалансировка
     avlInsert(t, "c", 3, "C");
     avlInsert(t, "b", 2, "B");
     avlInsert(t, "a", 1, "A");
@@ -152,7 +153,7 @@ static void test_rotate_right(void) {
     CHECK(check_bst_order(t->root, NULL, NULL));
     CHECK(t->size == 3);
 
-    /* После ротации корень должен быть "b" */
+    // После ротации корень должен быть "b"
     CHECK(strcmp(t->root->key, "b") == 0);
 
     freeAVLTree(t);
@@ -210,7 +211,7 @@ static void test_rotate_rl(void) {
 static void test_bulk_insert(void) {
     printf("\n=== test_bulk_insert ===\n");
 
-    /* 20 лексикографически смешанных слов */
+    // 20 лексикографически смешанных слов
     const char* words[] = {
         "memory", "leak", "pointer", "null", "segfault",
         "stack", "heap", "overflow", "malloc", "free",
@@ -223,14 +224,14 @@ static void test_bulk_insert(void) {
     for (int i = 0; i < N; i++) {
         avlInsert(t, words[i], i + 1, words[i]);
 
-        /* После каждой вставки проверяем оба инварианта */
+        // После каждой вставки проверяем оба инварианта
         CHECK(check_avl_invariant(t->root) > 0);
         CHECK(check_bst_order(t->root, NULL, NULL));
     }
 
     CHECK(t->size == N);
 
-    /* Поиск всех ключей */
+    // Поиск всех ключей
     int all_found = 1;
     for (int i = 0; i < N; i++) {
         if (!avlSearch(t, words[i])) { all_found = 0; break; }
@@ -265,12 +266,12 @@ static void test_inorder_traverse(void) {
     for (int i = 0; i < N; i++)
         avlInsert(t, words[i], i + 1, words[i]);
 
-    /* Счётчик */
+    // Счётчик
     TraverseCtx tc = { .count = 0 };
     avlTraverse(t, count_visitor, &tc);
     CHECK(tc.count == N);
 
-    /* Порядок */
+    // Порядок
     OrderCtx oc = { .prev = "", .ordered = 1 };
     avlTraverse(t, order_visitor, &oc);
     CHECK(oc.ordered == 1);
@@ -282,26 +283,41 @@ static void test_inorder_traverse(void) {
 static void test_free_null(void) {
     printf("\n=== test_free_null ===\n");
     freeAVLTree(NULL);
-    CHECK(1); /* нет краша */
+    int no_crash = 1;
+    CHECK(no_crash); // freeAVLTree(NULL) не вызвал падения
+}
+
+// ТЕСТ 11b: avlSearch и avlTraverse с NULL-деревом не падают
+static void test_null_tree_guards(void) {
+    printf("\n=== test_null_tree_guards ===\n");
+    Vector* pl = avlSearch(NULL, "key");
+    CHECK(pl == NULL); // avlSearch(NULL, ...) возвращает NULL
+
+    int traverse_ok = 1;
+    avlTraverse(NULL, count_visitor, &traverse_ok); // не должен упасть
+    CHECK(traverse_ok); // avlTraverse(NULL, ...) не вызвал падения
 }
 
 // ТЕСТ 12: Высота дерева логарифмическая
+#include <math.h>
 static void test_height_logarithmic(void) {
     printf("\n=== test_height_logarithmic ===\n");
 
-    /* Вставляем 1000 слов вида "word_N" */
+    const int N = 1000;
+
+    // Вставляем 1000 слов вида "word_N"
     AVLTree* t = createAVLTree();
     char buf[32];
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < N; i++) {
         snprintf(buf, sizeof(buf), "word_%04d", i);
         avlInsert(t, buf, i, buf);
     }
 
-    /* Для AVL-дерева высота ≤ 1.44 * log2(n+2) */
-    int h = t->root ? t->root->height : 0;
-    /* log2(1001) ≈ 10, ceiling = 1.44 * 10 ≈ 15 */
-    CHECK(h <= 15);
-    CHECK(t->size == 1000);
+    // Для AVL-дерева гарантировано: height <= 1.44 * log2(n + 2)
+    int h          = t->root ? t->root->height : 0;
+    int max_height = (int)(1.44 * log2((double)(N + 2))) + 1;
+    CHECK(h <= max_height);
+    CHECK(t->size == N);
 
     freeAVLTree(t);
 }
@@ -321,6 +337,7 @@ int main(void) {
     test_bulk_insert();
     test_inorder_traverse();
     test_free_null();
+    test_null_tree_guards();
     test_height_logarithmic();
 
     printf("\n==============================\n");

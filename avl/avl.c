@@ -3,9 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 
-/* ──────────────────────────────────────────────
-   Вспомогательные утилиты для узлов
-   ────────────────────────────────────────────── */
+// Вспомогательные утилиты для узлов
 
 static int node_height(const AVLNode* n) {
     return n ? n->height : 0;
@@ -23,10 +21,7 @@ static void update_height(AVLNode* n) {
     n->height = 1 + max2(node_height(n->left), node_height(n->right));
 }
 
-/* ──────────────────────────────────────────────
-   Создание / освобождение дерева
-   ────────────────────────────────────────────── */
-
+// Создание / освобождение дерева
 AVLTree* createAVLTree(void) {
     AVLTree* t = malloc(sizeof(AVLTree));
     if (!t) { perror("createAVLTree"); exit(EXIT_FAILURE); }
@@ -50,17 +45,7 @@ void freeAVLTree(AVLTree* tree) {
     free(tree);
 }
 
-/* ──────────────────────────────────────────────
-   Ротации
-   ────────────────────────────────────────────── */
-
-/*
- *     y                x
- *    / \              / \
- *   x   T3    =>   T1   y
- *  / \                 / \
- * T1  T2             T2  T3
- */
+// Ротации
 static AVLNode* rotate_right(AVLNode* y) {
     AVLNode* x  = y->left;
     AVLNode* T2 = x->right;
@@ -73,13 +58,6 @@ static AVLNode* rotate_right(AVLNode* y) {
     return x;
 }
 
-/*
- *   x                   y
- *  / \                 / \
- * T1  y      =>       x  T3
- *    / \             / \
- *   T2 T3           T1  T2
- */
 static AVLNode* rotate_left(AVLNode* x) {
     AVLNode* y  = x->right;
     AVLNode* T2 = y->left;
@@ -92,29 +70,26 @@ static AVLNode* rotate_left(AVLNode* x) {
     return y;
 }
 
-/* ──────────────────────────────────────────────
-   Балансировка узла после вставки
-   ────────────────────────────────────────────── */
-
+// Балансировка узла после вставки
 static AVLNode* rebalance(AVLNode* n) {
     update_height(n);
     int bf = balance_factor(n);
 
-    /* Left-Left */
+    // Left-Left
     if (bf > 1 && balance_factor(n->left) >= 0)
         return rotate_right(n);
 
-    /* Left-Right */
+    // Left-Right
     if (bf > 1 && balance_factor(n->left) < 0) {
         n->left = rotate_left(n->left);
         return rotate_right(n);
     }
 
-    /* Right-Right */
+    // Right-Right
     if (bf < -1 && balance_factor(n->right) <= 0)
         return rotate_left(n);
 
-    /* Right-Left */
+    // Right-Left
     if (bf < -1 && balance_factor(n->right) > 0) {
         n->right = rotate_right(n->right);
         return rotate_left(n);
@@ -123,15 +98,13 @@ static AVLNode* rebalance(AVLNode* n) {
     return n;
 }
 
-/* ──────────────────────────────────────────────
-   Вставка
-   ────────────────────────────────────────────── */
-
+// Вставка
 static AVLNode* new_node(const char* key, int doc_id, const char* title) {
     AVLNode* n = malloc(sizeof(AVLNode));
     if (!n) { perror("new_node"); exit(EXIT_FAILURE); }
 
-    n->key      = strdup(key);
+    n->key = strdup(key);
+    if (!n->key) { perror("new_node: strdup"); exit(EXIT_FAILURE); }
     n->height   = 1;
     n->left     = NULL;
     n->right    = NULL;
@@ -154,9 +127,12 @@ static AVLNode* insert_rec(AVLNode* n, const char* key,
         n->left  = insert_rec(n->left,  key, doc_id, title, inserted);
     else if (cmp > 0)
         n->right = insert_rec(n->right, key, doc_id, title, inserted);
-    else
-        /* Ключ уже существует — просто дополняем posting list */
+    else {
+        /* Ключ уже существует — просто дополняем posting list,
+           структура дерева не меняется, ребалансировка не нужна */
         appendPosting(n->postings, doc_id, title);
+        return n;
+    }
 
     return rebalance(n);
 }
@@ -167,11 +143,9 @@ void avlInsert(AVLTree* tree, const char* key, int doc_id, const char* title) {
     if (inserted) tree->size++;
 }
 
-/* ──────────────────────────────────────────────
-   Поиск
-   ────────────────────────────────────────────── */
-
+// Поиск
 Vector* avlSearch(const AVLTree* tree, const char* key) {
+    if (!tree) return NULL;
     const AVLNode* cur = tree->root;
     while (cur) {
         int cmp = strcmp(key, cur->key);
@@ -182,10 +156,7 @@ Vector* avlSearch(const AVLTree* tree, const char* key) {
     return NULL;
 }
 
-/* ──────────────────────────────────────────────
-   Обход (in-order)
-   ────────────────────────────────────────────── */
-
+// Обход (in-order)
 static void traverse_rec(const AVLNode* n,
                           void (*visit)(const char* key, Vector* postings, void* ctx),
                           void* ctx) {
@@ -198,5 +169,6 @@ static void traverse_rec(const AVLNode* n,
 void avlTraverse(const AVLTree* tree,
                  void (*visit)(const char* key, Vector* postings, void* ctx),
                  void* ctx) {
+    if (!tree) return;
     traverse_rec(tree->root, visit, ctx);
 }
