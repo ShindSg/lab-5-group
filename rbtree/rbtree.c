@@ -8,6 +8,7 @@
 // ======================================================
 
 RBNode* createRBNode(RBColor color, const char* key, RBNode *parent, RBNode *left, RBNode *right, Vector *postings){
+    /* создание нода */
     RBNode *node = malloc(sizeof(RBNode));
     if(!node){ return NULL; }
 
@@ -21,11 +22,12 @@ RBNode* createRBNode(RBColor color, const char* key, RBNode *parent, RBNode *lef
 }
 
 RBTree* createRBTree(void){
-    RBTree *tree = (RBTree*)malloc(sizeof(RBTree));
+    /* создание пустого дерева */
+    RBTree *tree = (RBTree*)malloc(sizeof(RBTree)); // выделение памяти
     if(!tree) return NULL;
 
     tree->size = 0;
-    tree->nil = createRBNode(RB_BLACK, NULL, NULL, NULL, NULL, NULL);
+    tree->nil = createRBNode(RB_BLACK, NULL, NULL, NULL, NULL, NULL); // NIL-узел для дерева
     tree->nil->left = tree->nil;
     tree->nil->right = tree->nil;
     tree->nil->parent = tree->nil;
@@ -35,19 +37,21 @@ RBTree* createRBTree(void){
 }
 
 void freeRBNode(RBNode *node, RBTree *tree){
+    /* рекурсивное удаление заданного узла и всех от него исходящих */
     if(!node || node == tree->nil){
-        return;
+        return; // по достижении NIL-узла рекурсия останавливается
     }
 
-    freeRBNode(node->left, tree);
+    freeRBNode(node->left, tree); // рекурсия
     freeRBNode(node->right, tree);
 
-    free(node->key);
+    free(node->key); // освобождение текущего узла после выполнения рекурсии по нижестоящим
     vectorFree(node->postings);
     free(node);
 }
 
-void freeRBTree(RBTree* tree){ 
+void freeRBTree(RBTree* tree){
+    /* удаление дерева */
     freeRBNode(tree->root, tree);
     freeRBNode(tree->nil, tree);
     free(tree);
@@ -57,6 +61,8 @@ void freeRBTree(RBTree* tree){
 // =======================================================
 
 static void rbRotateLeft(RBTree *tree, RBNode *x) {
+    /* левый поворот вокруг заданного узла */
+
     RBNode *y = x->right;
 
     x->right = y->left;
@@ -76,6 +82,8 @@ static void rbRotateLeft(RBTree *tree, RBNode *x) {
 }
 
 static void rbRotateRight(RBTree *tree, RBNode *y) {
+    /* правый поворот вокруг заданного узла */
+
     RBNode *x = y->left;
 
     y->left = x->right;
@@ -95,6 +103,8 @@ static void rbRotateRight(RBTree *tree, RBNode *y) {
 }
 
 static void rbFixup(RBTree *tree, RBNode *z) {
+    /* балансировка дерева */
+
     while (z->parent->color == RB_RED) {
         if (z->parent == z->parent->parent->left) {
             RBNode *uncle = z->parent->parent->right;
@@ -136,24 +146,26 @@ static void rbFixup(RBTree *tree, RBNode *z) {
 }
 
 void rbInsert(RBTree *tree, const char *key, int doc_id, const char *title) {
-    RBNode *parent  = tree->nil; // 
-    RBNode *current = tree->root; // 
+    /* вставка узла */
 
-    while (current != tree->nil) { // 
-        int cmp = strcmp(key, current->key); // 
-        if (cmp == 0) { // 
-            PostingEntry entry; // 
-            entry.doc_id = doc_id; // 
-            strncpy(entry.title, title, MAX_TITLE_LEN - 1); // 
-            entry.title[MAX_TITLE_LEN - 1] = '\0'; // 
-            appendVectorItem(current->postings, &entry); // 
+    RBNode *parent  = tree->nil;
+    RBNode *current = tree->root; // итеративный элемент
+
+    while (current != tree->nil) { // цикл до достижения конца дерева
+        int cmp = strcmp(key, current->key); // сравнение ключа с текущим
+        if (cmp == 0) { // при равенстве добавление в постинглист узла
+            PostingEntry entry;
+            entry.doc_id = doc_id;
+            strncpy(entry.title, title, MAX_TITLE_LEN - 1);
+            entry.title[MAX_TITLE_LEN - 1] = '\0';
+            appendVectorItem(current->postings, &entry);
             return;
         }
         parent  = current; // 
-        current = (cmp < 0) ? current->left : current->right; // 
+        current = (cmp < 0) ? current->left : current->right; // движение по дереву в соответствии с результатом сравнения
     }
 
-    Vector *postings = createVector(sizeof(PostingEntry));
+    Vector *postings = createVector(sizeof(PostingEntry)); // создание постинглиста для нового узла
     if (!postings) return;
 
     PostingEntry entry;
@@ -162,7 +174,7 @@ void rbInsert(RBTree *tree, const char *key, int doc_id, const char *title) {
     entry.title[MAX_TITLE_LEN - 1] = '\0';
     appendVectorItem(postings, &entry);
 
-    RBNode *z = createRBNode(RB_RED, key, parent, tree->nil, tree->nil, postings);
+    RBNode *z = createRBNode(RB_RED, key, parent, tree->nil, tree->nil, postings); // создание нового узла
     if (!z) { vectorFree(postings); return; }
 
     if (parent == tree->nil)
@@ -174,19 +186,21 @@ void rbInsert(RBTree *tree, const char *key, int doc_id, const char *title) {
 
     tree->size++;
 
-    rbFixup(tree, z);
+    rbFixup(tree, z); // Балансировка вокруг нового узла
 }
 
 Vector* rbSearch(const RBTree *tree, const char *key) {
-    if (!tree || !key) return NULL; // 
+    /* поиск по ключу */
+
+    if (!tree || !key) return NULL;
  
-    RBNode *current = tree->root; // 
+    RBNode *current = tree->root; // итеративный элемент
  
     while (current != tree->nil) { // 
-        int cmp = strcmp(key, current->key); // 
+        int cmp = strcmp(key, current->key); // сравнение с искомым
         if (cmp == 0)
-            return current->postings; // 
-        current = (cmp < 0) ? current->left : current->right; // 
+            return current->postings;
+        current = (cmp < 0) ? current->left : current->right; // движение по дереву
     }
  
     return NULL;
@@ -201,21 +215,23 @@ void rbTraverse(
     void* ctx
 )
 {
+    /* применение функции ко всем элементам дерева */
+
     if (!tree || !visit) return; // 
 
-    int top = -1; // 
-    RBNode* stack[tree->size]; // 
-    RBNode* current = tree->root;
+    int top = -1; // итеративный элемент
+    RBNode* stack[tree->size]; // стек
+    RBNode* current = tree->root; // итеративный элемент
     
-    while (current != tree->nil || top >= 0) { // 
+    while (current != tree->nil || top >= 0) {
         while (current != tree->nil) {
-            stack[++top] = current; // 
-            current = current->left; // 
+            stack[++top] = current; // заполнение стека
+            current = current->left; // движение влево
         }
         
-        current = stack[top--]; // 
-        visit(current->key, current->postings, ctx); // 
-        current = current->right; // 
+        current = stack[top--];
+        visit(current->key, current->postings, ctx); // применение функции
+        current = current->right; // движение вправо
     }
 }
 
