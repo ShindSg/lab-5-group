@@ -5,6 +5,7 @@
 #include <time.h>
 #include <ctype.h>
 
+#define _POSIX_C_SOURCE
 #define MAX_QUERY_TOKENS 64
 #define TOP_K            10
 

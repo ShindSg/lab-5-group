@@ -3,6 +3,8 @@
 #include <string.h>
 #include <stdio.h>
 
+#define _POSIX_C_SOURCE
+
 // Вспомогательные утилиты для узлов
 
 static int node_height(const AVLNode* n) {

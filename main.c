@@ -5,6 +5,8 @@
 #include "index/index.h"
 #include "index/search.h"
 
+#define _POSIX_C_SOURCE
+
 // Вспомогательные функции типа дерева
 
 TreeType parseType(const char* s) {
