@@ -1,12 +1,13 @@
 CC     = gcc
 CFLAGS = -Wall -Wextra -std=c11 -O2 -g
 
-OBJ_INSTRUMENTS = instruments/lab3/vector/generic.o \
-                  instruments/lab3/list/generic.o \
-                  instruments/lab4/hash_table/generic.o
-
-OBJ_SHARED = posting.o avl/avl.o rbtree/rbtree.o btree/btree.o \
-             index/index.o index/search.o $(OBJ_INSTRUMENTS)
+OBJ_SHARED = posting.o \
+			 avl/avl.o \
+			 rbtree/rbtree.o \
+			 btree/btree.o \
+             index/index.o \
+			 index/search.o \
+			 instruments/lab3/vector/generic.o
 
 .PHONY: all app u_tests test clean
 
@@ -15,14 +16,35 @@ all: app u_tests
 app: $(OBJ_SHARED) main.o
 	$(CC) $(CFLAGS) -o app $(OBJ_SHARED) main.o
 
-test_avl: posting.o avl/avl.o avl/tests.o $(OBJ_INSTRUMENTS)
-	$(CC) $(CFLAGS) -o test_avl posting.o avl/avl.o avl/tests.o $(OBJ_INSTRUMENTS) -lm
+test_avl: posting.o \
+		  avl/avl.o \
+		  avl/tests.o \
+		  instruments/lab3/vector/generic.o
+	$(CC) $(CFLAGS) -o test_avl \
+					   posting.o \
+					   avl/avl.o \
+					   avl/tests.o \
+					   instruments/lab3/vector/generic.o
 
-test_rb: posting.o rbtree/rbtree.o rbtree/tests.o $(OBJ_INSTRUMENTS)
-	$(CC) $(CFLAGS) -o test_rb posting.o rbtree/rbtree.o rbtree/tests.o $(OBJ_INSTRUMENTS)
+test_rb: posting.o \
+         rbtree/rbtree.o \
+		 rbtree/tests.o \
+		 instruments/lab3/vector/generic.o
+	$(CC) $(CFLAGS) -o test_rb \
+					   posting.o \
+					   rbtree/rbtree.o \
+					   rbtree/tests.o \
+					   instruments/lab3/vector/generic.o
 
-test_btree: posting.o btree/btree.o btree/tests.o $(OBJ_INSTRUMENTS)
-	$(CC) $(CFLAGS) -o test_btree posting.o btree/btree.o btree/tests.o $(OBJ_INSTRUMENTS)
+test_btree: posting.o \
+			btree/btree.o \
+			btree/tests.o \
+			instruments/lab3/vector/generic.o
+	$(CC) $(CFLAGS) -o test_btree \
+					   posting.o \
+					   btree/btree.o \
+					   btree/tests.o \
+					   instruments/lab3/vector/generic.o
 
 u_tests: test_avl test_rb test_btree
 	./test_avl
@@ -53,3 +75,4 @@ clean:
 	rm -f app test_avl test_rb test_btree
 	rm -f *.o avl/*.o rbtree/*.o btree/*.o index/*.o
 	rm -f data/index_*.txt data/test/docs.jsonl data/test/idx_*.txt
+	rm -f instruments/lab3/vector/*.o
