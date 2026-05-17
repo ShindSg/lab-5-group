@@ -8,6 +8,8 @@
     python preprocess.py --input data/Questions.csv --output data/processed/docs.jsonl
     python preprocess.py --input data/Questions.csv --output data/processed/docs.jsonl --limit 50000
 """
+# Сори если не работает я тестил на mock данных :)
+
 import argparse
 import csv
 import json
