@@ -133,7 +133,7 @@ static void runIndex(TreeType type, const char* data_path, const char* idx_path)
         docs++;
 
         if (docs % 10000 == 0)
-            fprintf(stderr, "Проиндексировано: %ld документов\n", docs);
+            fprintf(stderr, "Indexed: %ld documents\n", docs);
     }
     fclose(f);
 
@@ -141,10 +141,10 @@ static void runIndex(TreeType type, const char* data_path, const char* idx_path)
     double elapsed = (t1.tv_sec  - t0.tv_sec)  * 1000.0
                    + (t1.tv_nsec - t0.tv_nsec) / 1e6;
 
-    fprintf(stderr, "Готово: %ld документов за %.1f мс\n", docs, elapsed);
+    fprintf(stderr, "Done: %ld documents in %.1f ms\n", docs, elapsed);
 
     saveIndex(idx, idx_path);
-    fprintf(stderr, "Индекс сохранён: %s\n", idx_path);
+    fprintf(stderr, "Index saved: %s\n", idx_path);
 
     freeIndex(idx);
 }
