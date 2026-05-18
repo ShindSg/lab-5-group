@@ -1,6 +1,7 @@
 #pragma once
 
 #include "instruments/lab3/vector/generic.h"
+#include "instruments/levenshtein/levenshtein.h"
 
 #define MAX_TITLE_LEN 256
 

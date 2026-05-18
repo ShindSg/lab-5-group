@@ -205,3 +205,203 @@ void freeSearchResults(SearchResults* sr) {
     if (sr->results) vectorFree(sr->results);
     free(sr);
 }
+
+
+void freeFuzzyCandidates(Vector* candidates) {
+    if (!candidates) return;
+    for (size_t i = 0; i < candidates->size; i++) {
+        FuzzyCandidate* c = getVectorItem(candidates, i);
+        if (c->postings) vectorFree(c->postings);
+    }
+    vectorFree(candidates);
+}
+
+void fuzzyAppendCandidate(const char* term, Vector* postings, FuzzyContext* ctx) {
+    if (!ctx || !ctx->candidates || !postings) return;
+    int dist = levenshteinDistance(ctx->term, term);
+    if (dist > ctx->maxdistance) return;
+
+    FuzzyCandidate item;
+    strncpy(item.term, term, sizeof(item.term) - 1);
+    item.term[sizeof(item.term) - 1] = '\0';
+    item.distance = dist;
+    item.postings = clonePostingList(postings);
+    appendVectorItem(ctx->candidates, &item);
+}
+
+Vector* fuzzyFindCandidates(Index* idx, const char* term, int max_distance) {
+    if (!idx) return NULL;
+
+    FuzzyContext* ctx = malloc(sizeof(FuzzyContext));
+    if (!ctx) { perror("fuzzyFindCandidates"); exit(EXIT_FAILURE); }
+    ctx->candidates  = createVector(sizeof(FuzzyCandidate));
+    ctx->maxdistance = max_distance;
+    strncpy(ctx->term, term, sizeof(ctx->term) - 1);
+    ctx->term[sizeof(ctx->term) - 1] = '\0';
+
+    traverseIndex(idx, (void (*)(const char*, Vector*, void*))fuzzyAppendCandidate, ctx);
+    Vector* result = ctx->candidates;
+    free(ctx);
+    return result;
+}
+
+static int cmp_fuzzy_merged(const void* a, const void* b) {
+    return ((FuzzyMergedEntry*)a)->doc_id - ((FuzzyMergedEntry*)b)->doc_id;
+}
+
+static Vector* mergeTokenCandidates(Vector* candidates) {
+    // candidates: Vector<FuzzyCandidate>
+    // Результат: Vector<FuzzyMergedEntry>
+    Vector* merged = createVector(sizeof(FuzzyMergedEntry));
+
+    for (size_t ci = 0; ci < candidates->size; ci++) {
+        FuzzyCandidate* cand = getVectorItem(candidates, ci);
+        Vector* postings = cand->postings;
+        if (!postings) continue;
+
+        for (size_t pi = 0; pi < postings->size; pi++) {
+            PostingEntry* pe = getVectorItem(postings, pi);
+
+            int found = 0;
+            for (size_t mi = 0; mi < merged->size; mi++) {
+                FuzzyMergedEntry* me = getVectorItem(merged, mi);
+                if (me->doc_id == pe->doc_id) {
+                    if (cand->distance < me->min_dist)
+                        me->min_dist = cand->distance;
+                    found = 1;
+                    break;
+                }
+            }
+            if (!found) {
+                FuzzyMergedEntry me;
+                me.doc_id   = pe->doc_id;
+                me.min_dist = cand->distance;
+                strncpy(me.title, pe->title, MAX_TITLE_LEN - 1);
+                me.title[MAX_TITLE_LEN - 1] = '\0';
+                appendVectorItem(merged, &me);
+            }
+        }
+    }
+
+    if (merged->size > 0)
+        qsort(merged->data, merged->size, merged->elem_size, cmp_fuzzy_merged);
+
+    return merged;
+}
+
+static FuzzyMergedEntry* find_merged(Vector* list, int doc_id) {
+    size_t lo = 0, hi = list->size;
+    while (lo < hi) {
+        size_t mid = lo + (hi - lo) / 2;
+        FuzzyMergedEntry* e = getVectorItem(list, mid);
+        if      (e->doc_id == doc_id) return e;
+        else if (e->doc_id  < doc_id) lo = mid + 1;
+        else                          hi = mid;
+    }
+    return NULL;
+}
+
+SearchResults* fuzzySearch(Index* idx, const char* query, int max_distance) {
+    SearchResults* sr = malloc(sizeof(SearchResults));
+    if (!sr) { perror("fuzzySearch"); exit(EXIT_FAILURE); }
+    sr->results = NULL;
+    sr->total   = 0;
+    sr->time_ms = 0.0;
+
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
+
+    char tokens[MAX_QUERY_TOKENS][MAX_TITLE_LEN];
+    int  n = tokenize_query(query, tokens, MAX_QUERY_TOKENS);
+
+    if (n == 0) {
+        sr->results = createVector(sizeof(SearchResult));
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+        sr->time_ms = (t1.tv_sec - t0.tv_sec) * 1000.0
+                    + (t1.tv_nsec - t0.tv_nsec) / 1e6;
+        return sr;
+    }
+
+    Vector* token_lists[MAX_QUERY_TOKENS];
+    int actual = 0;
+
+    for (int i = 0; i < n; i++) {
+        Vector* candidates = fuzzyFindCandidates(idx, tokens[i], max_distance);
+        if (!candidates || candidates->size == 0) {
+            if (candidates) freeFuzzyCandidates(candidates);
+
+            for (int j = 0; j < actual; j++) vectorFree(token_lists[j]);
+            sr->results = createVector(sizeof(SearchResult));
+            clock_gettime(CLOCK_MONOTONIC, &t1);
+            sr->time_ms = (t1.tv_sec - t0.tv_sec) * 1000.0
+                        + (t1.tv_nsec - t0.tv_nsec) / 1e6;
+            return sr;
+        }
+
+        token_lists[actual++] = mergeTokenCandidates(candidates);
+        freeFuzzyCandidates(candidates);
+    }
+
+    int shortest = 0;
+    for (int i = 1; i < actual; i++)
+        if (token_lists[i]->size < token_lists[shortest]->size)
+            shortest = i;
+
+    Vector* out = createVector(sizeof(SearchResult));
+
+    for (size_t j = 0; j < token_lists[shortest]->size; j++) {
+        FuzzyMergedEntry* base = getVectorItem(token_lists[shortest], j);
+        int doc_id = base->doc_id;
+
+        int   found_in_all = 1;
+        int   total_dist   = base->min_dist;
+
+        for (int i = 0; i < actual; i++) {
+            if (i == shortest) continue;
+            FuzzyMergedEntry* hit = find_merged(token_lists[i], doc_id);
+            if (!hit) { found_in_all = 0; break; }
+            total_dist += hit->min_dist;
+        }
+
+        if (found_in_all) {
+            double avg_dist = (double)total_dist / actual;
+            SearchResult sr_item;
+            sr_item.doc_id = doc_id;
+            // score = matched_terms * 10 - avg_distance
+            sr_item.score  = actual * 10 - (int)avg_dist;
+            strncpy(sr_item.title, base->title, MAX_TITLE_LEN - 1);
+            sr_item.title[MAX_TITLE_LEN - 1] = '\0';
+            appendVectorItem(out, &sr_item);
+        }
+    }
+
+    for (int i = 0; i < actual; i++) vectorFree(token_lists[i]);
+
+    // сортировка по убыванию score
+    if (out->size > 0) {
+        // qsort с обратным порядком
+        for (size_t a = 0; a < out->size - 1; a++) {
+            for (size_t b = a + 1; b < out->size; b++) {
+                SearchResult* ra = getVectorItem(out, a);
+                SearchResult* rb = getVectorItem(out, b);
+                if (rb->score > ra->score) {
+                    SearchResult tmp = *ra;
+                    *ra = *rb;
+                    *rb = tmp;
+                }
+            }
+        }
+    }
+
+    sr->total = (int)out->size;
+    int top = sr->total < TOP_K ? sr->total : TOP_K;
+    sr->results = createVector(sizeof(SearchResult));
+    for (int i = 0; i < top; i++)
+        appendVectorItem(sr->results, getVectorItem(out, i));
+    vectorFree(out);
+
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    sr->time_ms = (t1.tv_sec - t0.tv_sec) * 1000.0
+                + (t1.tv_nsec - t0.tv_nsec) / 1e6;
+    return sr;
+}

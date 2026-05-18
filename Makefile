@@ -7,7 +7,8 @@ OBJ_SHARED = posting.o \
 			 btree/btree.o \
              index/index.o \
 			 index/search.o \
-			 instruments/lab3/vector/generic.o
+			 instruments/lab3/vector/generic.o \
+			 instruments/levenshtein/levenshtein.o
 
 .PHONY: all app u_tests test clean
 
@@ -74,5 +75,6 @@ test: app
 clean:
 	rm -f app test_avl test_rb test_btree
 	rm -f *.o avl/*.o rbtree/*.o btree/*.o index/*.o
+	rm -f instruments/levenshtein/*.o
 	rm -f data/index_*.txt data/test/docs.jsonl data/test/idx_*.txt
 	rm -f instruments/lab3/vector/*.o
