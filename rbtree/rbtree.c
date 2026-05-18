@@ -1,9 +1,8 @@
 // Полностью на ваше усмотрение (только переиспользуйте код из предыдущих лабораторных, если он вам подходит)
+#define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <string.h>
 #include "rbtree.h"
-
-#define MAX_REC_DEPTH 512
 
 // ======================================================
 
@@ -215,13 +214,15 @@ void rbTraverse(
     void* ctx
 )
 {
-    /* применение функции ко всем элементам дерева */
+    if (!tree || !visit) return;
 
-    if (!tree || !visit) return; // 
+    if (tree->root == tree->nil) return;
 
-    int top = -1; // итеративный элемент
-    RBNode* stack[tree->size]; // стек
-    RBNode* current = tree->root; // итеративный элемент
+    RBNode** stack = malloc(sizeof(RBNode*) * (tree->size + 1));
+    if (!stack) return;
+
+    int top = -1;
+    RBNode* current = tree->root;
     
     while (current != tree->nil || top >= 0) {
         while (current != tree->nil) {
@@ -233,6 +234,8 @@ void rbTraverse(
         visit(current->key, current->postings, ctx); // применение функции
         current = current->right; // движение вправо
     }
+
+    free(stack);
 }
 
 
