@@ -15,6 +15,10 @@ static int cmp_doc_id(const void* a, const void* b) {
     return ((PostingEntry*)a)->doc_id - ((PostingEntry*)b)->doc_id;
 }
 
+static int cmp_score_desc(const void* a, const void* b) {
+    return ((SearchResult*)b)->score - ((SearchResult*)a)->score;
+}
+
 // Бинарный поиск doc_id в отсортированном массиве posting'ов
 static PostingEntry* find_in_list(Vector* list, int doc_id) {
     size_t lo = 0, hi = list->size;
@@ -384,18 +388,7 @@ SearchResults* fuzzySearch(Index* idx, const char* query, int max_distance) {
 
     // сортировка по убыванию score
     if (out->size > 0) {
-        // qsort с обратным порядком
-        for (size_t a = 0; a < out->size - 1; a++) {
-            for (size_t b = a + 1; b < out->size; b++) {
-                SearchResult* ra = getVectorItem(out, a);
-                SearchResult* rb = getVectorItem(out, b);
-                if (rb->score > ra->score) {
-                    SearchResult tmp = *ra;
-                    *ra = *rb;
-                    *rb = tmp;
-                }
-            }
-        }
+        qsort(out->data, out->size, out->elem_size, cmp_score_desc);
     }
 
     sr->total = (int)out->size;
