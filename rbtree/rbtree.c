@@ -1,14 +1,13 @@
-// Полностью на ваше усмотрение (только переиспользуйте код из предыдущих лабораторных, если он вам подходит)
 #include <stdio.h>
 #include <string.h>
 #include "rbtree.h"
 
 #define MAX_REC_DEPTH 512
 
-// ======================================================
+// RB node/tree creation and cleanup
 
 RBNode* createRBNode(RBColor color, const char* key, RBNode *parent, RBNode *left, RBNode *right, Vector *postings){
-    /* создание нода */
+    /* Create and initialize a single RB node */
     RBNode *node = malloc(sizeof(RBNode));
     if(!node){ return NULL; }
 
@@ -18,16 +17,22 @@ RBNode* createRBNode(RBColor color, const char* key, RBNode *parent, RBNode *lef
     node->left = left ? left : NULL;
     node->right = right ? right : NULL;
     node->postings = postings ? postings : NULL;
+
     return node;
 }
 
 RBTree* createRBTree(void){
-    /* создание пустого дерева */
-    RBTree *tree = (RBTree*)malloc(sizeof(RBTree)); // выделение памяти
+    /* Create an empty RB tree */
+    RBTree *tree = (RBTree*)malloc(sizeof(RBTree));
     if(!tree) return NULL;
 
     tree->size = 0;
-    tree->nil = createRBNode(RB_BLACK, NULL, NULL, NULL, NULL, NULL); // NIL-узел для дерева
+
+    /*
+     * Sentinel NIL node replaces NULL children.
+     * It simplifies rotations, fixup and traversal logic.
+     */
+    tree->nil = createRBNode(RB_BLACK, NULL, NULL, NULL, NULL, NULL);
     tree->nil->left = tree->nil;
     tree->nil->right = tree->nil;
     tree->nil->parent = tree->nil;
@@ -37,38 +42,49 @@ RBTree* createRBTree(void){
 }
 
 void freeRBNode(RBNode *node, RBTree *tree){
-    /* рекурсивное удаление заданного узла и всех от него исходящих */
+    /* Recursively free the given node and all its descendants */
     if(!node || node == tree->nil){
-        return; // по достижении NIL-узла рекурсия останавливается
+        return;
     }
 
-    freeRBNode(node->left, tree); // рекурсия
+    /* Free children before the current node */
+    freeRBNode(node->left, tree);
     freeRBNode(node->right, tree);
 
-    free(node->key); // освобождение текущего узла после выполнения рекурсии по нижестоящим
+    /* Free data owned by the current node */
+    free(node->key);
     vectorFree(node->postings);
     free(node);
 }
 
 void freeRBTree(RBTree* tree){
-    /* удаление дерева */
+    /* Free the entire RB tree */
+
     freeRBNode(tree->root, tree);
     freeRBNode(tree->nil, tree);
     free(tree);
     return;
 }
 
-// =======================================================
+// RB rotations and balancing
 
+/*
+ * Performs left rotation around node x.
+ *
+ * x goes down to the left, and its right child
+ * becomes the new root of this local subtree.
+ */
 static void rbRotateLeft(RBTree *tree, RBNode *x) {
-    /* левый поворот вокруг заданного узла */
+    /* Left rotation around the given node */
 
     RBNode *y = x->right;
 
+    /* Move y's left subtree to x's right subtree */
     x->right = y->left;
     if (y->left != tree->nil)
         y->left->parent = x;
 
+    /* Connect y with x's former parent */
     y->parent = x->parent;
     if (x->parent == tree->nil)
         tree->root = y;
@@ -77,19 +93,28 @@ static void rbRotateLeft(RBTree *tree, RBNode *x) {
     else
         x->parent->right = y;
 
+    /* Put x below y */
     y->left   = x;
     x->parent = y;
 }
 
+/*
+ * Performs right rotation around node y.
+ *
+ * y goes down to the right, and its left child
+ * becomes the new root of this local subtree.
+ */
 static void rbRotateRight(RBTree *tree, RBNode *y) {
-    /* правый поворот вокруг заданного узла */
+    /* Right rotation around the given node */
 
     RBNode *x = y->left;
 
+    /* Move x's right subtree to y's left subtree */
     y->left = x->right;
     if (x->right != tree->nil)
         x->right->parent = y;
 
+    /* Connect x with y's former parent */
     x->parent = y->parent;
     if (y->parent == tree->nil)
         tree->root = x;
@@ -98,27 +123,38 @@ static void rbRotateRight(RBTree *tree, RBNode *y) {
     else
         y->parent->left = x;
 
+    /* Put y below x */
     x->right  = y;
     y->parent = x;
 }
 
+/*
+ * Restores Red-Black tree properties after insertion.
+ *
+ * A newly inserted node is red, so the main possible violation
+ * is a red node with a red parent.
+ */
 static void rbFixup(RBTree *tree, RBNode *z) {
-    /* балансировка дерева */
+    /* Balance the tree after insertion */
 
     while (z->parent->color == RB_RED) {
         if (z->parent == z->parent->parent->left) {
             RBNode *uncle = z->parent->parent->right;
 
+            /* Case 1: parent and uncle are red */
             if (uncle->color == RB_RED) {
                 z->parent->color         = RB_BLACK;
                 uncle->color             = RB_BLACK;
                 z->parent->parent->color = RB_RED;
                 z = z->parent->parent;
             } else {
+                /* Case 2: triangle shape, rotate parent first */
                 if (z == z->parent->right) {
                     z = z->parent;
                     rbRotateLeft(tree, z);
                 }
+
+                /* Case 3: line shape, recolor and rotate grandparent */
                 z->parent->color         = RB_BLACK;
                 z->parent->parent->color = RB_RED;
                 rbRotateRight(tree, z->parent->parent);
@@ -126,34 +162,47 @@ static void rbFixup(RBTree *tree, RBNode *z) {
         } else {
             RBNode *uncle = z->parent->parent->left;
 
+            /* Mirror case 1: parent and uncle are red */
             if (uncle->color == RB_RED) {
                 z->parent->color         = RB_BLACK;
                 uncle->color             = RB_BLACK;
                 z->parent->parent->color = RB_RED;
                 z = z->parent->parent;
             } else {
+                /* Mirror case 2: triangle shape */
                 if (z == z->parent->left) {
                     z = z->parent;
                     rbRotateRight(tree, z);
                 }
+
+                /* Mirror case 3: line shape */
                 z->parent->color         = RB_BLACK;
                 z->parent->parent->color = RB_RED;
                 rbRotateLeft(tree, z->parent->parent);
             }
         }
     }
+
+    /* Root must always be black */
     tree->root->color = RB_BLACK;
 }
 
+// RB insertion
+
 void rbInsert(RBTree *tree, const char *key, int doc_id, const char *title) {
-    /* вставка узла */
+    /* Insert key occurrence into the RB tree */
 
     RBNode *parent  = tree->nil;
-    RBNode *current = tree->root; // итеративный элемент
+    RBNode *current = tree->root;
 
-    while (current != tree->nil) { // цикл до достижения конца дерева
-        int cmp = strcmp(key, current->key); // сравнение ключа с текущим
-        if (cmp == 0) { // при равенстве добавление в постинглист узла
+    /*
+     * Search for insertion position.
+     * If key already exists, only append posting.
+     */
+    while (current != tree->nil) {
+        int cmp = strcmp(key, current->key);
+
+        if (cmp == 0) {
             PostingEntry entry;
             entry.doc_id = doc_id;
             strncpy(entry.title, title, MAX_TITLE_LEN - 1);
@@ -161,11 +210,13 @@ void rbInsert(RBTree *tree, const char *key, int doc_id, const char *title) {
             appendVectorItem(current->postings, &entry);
             return;
         }
-        parent  = current; // 
-        current = (cmp < 0) ? current->left : current->right; // движение по дереву в соответствии с результатом сравнения
+
+        parent  = current;
+        current = (cmp < 0) ? current->left : current->right;
     }
 
-    Vector *postings = createVector(sizeof(PostingEntry)); // создание постинглиста для нового узла
+    /* Create posting list for a new unique key */
+    Vector *postings = createVector(sizeof(PostingEntry));
     if (!postings) return;
 
     PostingEntry entry;
@@ -174,9 +225,11 @@ void rbInsert(RBTree *tree, const char *key, int doc_id, const char *title) {
     entry.title[MAX_TITLE_LEN - 1] = '\0';
     appendVectorItem(postings, &entry);
 
-    RBNode *z = createRBNode(RB_RED, key, parent, tree->nil, tree->nil, postings); // создание нового узла
+    /* New RB node is inserted red */
+    RBNode *z = createRBNode(RB_RED, key, parent, tree->nil, tree->nil, postings);
     if (!z) { vectorFree(postings); return; }
 
+    /* Attach new node to its parent */
     if (parent == tree->nil)
         tree->root = z;
     else if (strcmp(key, parent->key) < 0)
@@ -186,28 +239,30 @@ void rbInsert(RBTree *tree, const char *key, int doc_id, const char *title) {
 
     tree->size++;
 
-    rbFixup(tree, z); // Балансировка вокруг нового узла
+    /* Restore Red-Black properties after insertion */
+    rbFixup(tree, z);
 }
 
 Vector* rbSearch(const RBTree *tree, const char *key) {
-    /* поиск по ключу */
+    /* Search posting list by key */
 
     if (!tree || !key) return NULL;
- 
-    RBNode *current = tree->root; // итеративный элемент
- 
-    while (current != tree->nil) { // 
-        int cmp = strcmp(key, current->key); // сравнение с искомым
+
+    RBNode *current = tree->root;
+
+    while (current != tree->nil) {
+        int cmp = strcmp(key, current->key);
+
         if (cmp == 0)
             return current->postings;
-        current = (cmp < 0) ? current->left : current->right; // движение по дереву
+
+        current = (cmp < 0) ? current->left : current->right;
     }
- 
+
     return NULL;
 }
 
-
-// ==========================================================
+// RB traversal
 
 void rbTraverse(
     const RBTree* tree,
@@ -215,26 +270,26 @@ void rbTraverse(
     void* ctx
 )
 {
-    /* применение функции ко всем элементам дерева */
+    /* Apply visit callback to all tree elements in sorted order */
 
-    if (!tree || !visit) return; // 
+    if (!tree || !visit) return;
 
-    int top = -1; // итеративный элемент
-    RBNode* stack[tree->size]; // стек
-    RBNode* current = tree->root; // итеративный элемент
-    
+    int top = -1; // iterative element
+    RBNode* stack[tree->size]; // stack
+    RBNode* current = tree->root; // iterative elemnt
+
+    /*
+     * Iterative in-order traversal:
+     * left subtree -> node -> right subtree.
+     */
     while (current != tree->nil || top >= 0) {
         while (current != tree->nil) {
-            stack[++top] = current; // заполнение стека
-            current = current->left; // движение влево
+            stack[++top] = current;
+            current = current->left;
         }
-        
+
         current = stack[top--];
-        visit(current->key, current->postings, ctx); // применение функции
-        current = current->right; // движение вправо
+        visit(current->key, current->postings, ctx);
+        current = current->right;
     }
 }
-
-
-// ===========================================================
-
