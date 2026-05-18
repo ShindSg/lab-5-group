@@ -164,11 +164,11 @@ SearchResults* search(Index* idx, const char* query) {
 
 void printResultsText(const SearchResults* sr) {
     if (!sr) return;
-    printf("Время: %.1f мс | Найдено: %d документов\n\n",
+    printf("Time: %.1f ms | Found: %d documents\n\n",
            sr->time_ms, sr->total);
 
     if (!sr->results || sr->results->size == 0) {
-        printf("Ничего не найдено.\n");
+        printf("Nothing found.\n");
         return;
     }
 
