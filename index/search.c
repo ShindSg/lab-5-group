@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include "search.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -5,7 +6,6 @@
 #include <time.h>
 #include <ctype.h>
 
-#define _POSIX_C_SOURCE
 #define MAX_QUERY_TOKENS 64
 #define TOP_K            10
 
@@ -322,7 +322,7 @@ SearchResults* fuzzySearch(Index* idx, const char* query, int max_distance) {
         return sr;
     }
 
-    Vector* token_lists[MAX_QUERY_TOKENS];
+    Vector* token_lists[MAX_QUERY_TOKENS] = {NULL};
     int actual = 0;
 
     for (int i = 0; i < n; i++) {
