@@ -1,9 +1,9 @@
+#define _POSIX_C_SOURCE
+
 #include "avl.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-
-#define _POSIX_C_SOURCE
 
 // Вспомогательные утилиты для узлов
 

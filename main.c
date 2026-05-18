@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -5,7 +6,6 @@
 #include "index/index.h"
 #include "index/search.h"
 
-#define _POSIX_C_SOURCE
 
 // Вспомогательные функции типа дерева
 
