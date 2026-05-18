@@ -50,9 +50,14 @@ Vector* intersectPostings(Vector** lists, int n) {
 
     Vector* out = createVector(sizeof(SearchResult));
 
+    int prev_doc_id = -1;
+
     for (size_t j = 0; j < lists[shortest]->size; j++) {
         PostingEntry* base = getVectorItem(lists[shortest], j);
         int doc_id = base->doc_id;
+
+        if (doc_id == prev_doc_id) continue;
+        prev_doc_id = doc_id;
 
         int found_in_all = 1;
         for (int i = 0; i < n; i++) {
