@@ -62,7 +62,9 @@ void handle_client(int client_socket) {
     char tree_type[32] = {0};
     parse_request_json(buffer, query, tree_type);
 
-    printf("[Сервер] Поиск: %s (Движок: %s)\n", query, tree_type);
+    // Пишем логи в stderr, чтобы они сразу без буферизации падали в server.log
+    fprintf(stderr, "[Сервер] Поиск: %s (Движок: %s)\n", query, tree_type);
+    fflush(stderr);
 
     Index* current_index = index_avl;
     if (strcmp(tree_type, "rb") == 0) {
@@ -71,54 +73,60 @@ void handle_client(int client_socket) {
         current_index = index_btree;
     }
 
-    char* response_json = malloc(BUFFER_SIZE);
-    if (!response_json) {
-        close(client_socket);
-        return;
-    }
-    memset(response_json, 0, BUFFER_SIZE);
-
     if (!current_index) {
-        snprintf(response_json, BUFFER_SIZE, "{\"status\":\"error\",\"message\":\"Индекс не загружен на сервере\"}\n");
+        char error_msg[] = "{\"status\":\"error\",\"message\":\"Индекс не загружен на сервере\"}\n";
+        send(client_socket, error_msg, strlen(error_msg), 0);
     } else {
-        // 1. Вызываем твой родной поиск
+        // 1. Вызываем поисковый движок
         SearchResults* sr = search(current_index, query);
         
-        // 2. Перехватываем stdout в буфер response_json через fmemopen
-        FILE* mem_stream = fmemopen(response_json, BUFFER_SIZE - 2, "w");
-        if (mem_stream) {
+        // 2. Создаем дубликат дескриптора сокета для работы через файловый поток Си
+        int socket_dup = dup(client_socket);
+        FILE* socket_stream = fdopen(socket_dup, "w");
+        
+        if (socket_stream) {
+            // Сбрасываем текущий буфер stdout перед подменой
             fflush(stdout);
-            int stdout_dup = dup(1);      // Сохраняем реальный stdout
-            int mem_fd = fileno(mem_stream);
-            dup2(mem_fd, 1);              // Подменяем stdout потоком в памяти
             
-            printResultsJSON(sr);         // Твоя функция пишет в stdout (то есть в память)
+            // Сохраняем оригинальный stdout (консоль/лог)
+            int stdout_backup = dup(1);
             
+            // Направляем stdout (дескриптор 1) прямиком в сокет клиента
+            dup2(socket_dup, 1);
+            
+            // Твоя функция пишет в stdout, но данные летят по сети в Streamlit!
+            printResultsJSON(sr);
+            
+            // Дописываем перевод строки, чтобы Python-скрипт гарантированно считал пакет до конца
+            printf("\n");
+            
+            // Форсируем отправку всех байт в сеть и возвращаем stdout обратно
             fflush(stdout);
-            dup2(stdout_dup, 1);          // Возвращаем stdout на место
-            close(stdout_dup);
-            fclose(mem_stream);
+            dup2(stdout_backup, 1);
+            
+            close(stdout_backup);
+            fclose(socket_stream); // Закроет и socket_dup
+        } else {
+            close(socket_dup);
         }
+        
         freeSearchResults(sr);
     }
 
-    // Дописываем \n, чтобы Python понимал, где конец пакета
-    size_t len = strlen(response_json);
-    if (len > 0 && response_json[len - 1] != '\n') {
-        strcat(response_json, "\n");
-    }
-
-    send(client_socket, response_json, strlen(response_json), 0);
-    free(response_json);
     close(client_socket);
 }
 
 int main() {
-    printf("[Старт] Загрузка индексов из папки data/test/...\n");
+    // Включаем немедленный сброс буфера для логов старта
+    fprintf(stderr, "[Старт] Загрузка индексов из папки data/test/...\n");
+    fflush(stderr);
+    
     index_avl   = loadIndex("data/test/idx_avl.txt", TREE_AVL);
     index_rb    = loadIndex("data/test/idx_rb.txt", TREE_RB);
     index_btree = loadIndex("data/test/idx_btree.txt", TREE_BTREE);
-    printf("[Старт] Загрузка завершена. Сервер готов к работе.\n");
+    
+    fprintf(stderr, "[Старт] Загрузка завершена. Сервер готов к работе.\n");
+    fflush(stderr);
 
     int server_fd, new_socket;
     struct sockaddr_in address;
@@ -130,7 +138,11 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        perror("Setsockopt failed");
+        exit(EXIT_FAILURE);
+    }
+    
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
@@ -144,7 +156,8 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    printf("[Сервер] Слушает TCP порт %d...\n", PORT);
+    fprintf(stderr, "[Сервер] Слушает TCP порт %d...\n", PORT);
+    fflush(stderr);
 
     while (1) {
         if ((new_socket = accept(server_fd, (struct sockaddr*)&address, (socklen_t*)&addrlen)) < 0) {

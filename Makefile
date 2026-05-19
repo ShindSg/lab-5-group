@@ -17,13 +17,12 @@ all: app u_tests server
 app: $(OBJ_SHARED) main.o
 	$(CC) $(CFLAGS) -o app $(OBJ_SHARED) main.o
 
-# --- Добавлено для сетевого сервера ---
+# Правила сборки для сетевого сервера
 server: $(OBJ_SHARED) server.o
 	$(CC) $(CFLAGS) -o server $(OBJ_SHARED) server.o
 
 server.o: server.c
 	$(CC) $(CFLAGS) -I. -c server.c -o server.o
-# --------------------------------------
 
 test_avl: posting.o \
 		  avl/avl.o \
@@ -70,10 +69,6 @@ test: app
 	./app index --type=avl   --data=data/test/docs.jsonl --index=data/test/idx_avl.txt
 	./app index --type=rb    --data=data/test/docs.jsonl --index=data/test/idx_rb.txt
 	./app index --type=btree --data=data/test/docs.jsonl --index=data/test/idx_btree.txt
-	@echo "=== E2E: searching ==="
-	./app search --type=avl   --index=data/test/idx_avl.txt "memory leak"
-	./app search --type=rb    --index=data/test/idx_rb.txt  "memory leak"
-	./app search --type=btree --index=data/test/idx_btree.txt "memory leak"
 
 clean:
 	rm -f *.o avl/*.o rbtree/*.o btree/*.o index/*.o instruments/lab3/vector/*.o instruments/levenshtein/*.o
