@@ -1,40 +1,14 @@
-# /// script
-# dependencies = ["streamlit"]
-# ///
-import os
-import sys
-
-"""
-Streamlit-интерфейс для проверки поискового индекса.
-
-Вызывает скомпилированный C-бинарник ./app с разными бэкендами (avl, rb, btree).
-C-программа должна выводить JSON в stdout:
-
-    {
-      "total": 47,
-      "time_ms": 3.2,
-      "results": [
-        {"doc_id": 1234, "title": "...", "score": 3}
-      ]
-    }
-
-Запуск:
-    uv add streamlit
-    streamlit run app.py
-"""
-
 import json
-import subprocess
+import socket
 import time
-from pathlib import Path
+import streamlit as st
 
-import streamlit as st  # type: ignore[import-untyped]
-
-APP_BINARY = Path(__file__).parent / "app"
+SERVER_HOST = "127.0.0.1"
+SERVER_PORT = 8080
 
 st.set_page_config(page_title="Stack Overflow Search", layout="wide")
-st.title("Stack Overflow Search")
-st.caption("Инвертированный индекс на AVL / Red-Black / B-tree")
+st.title("Stack Overflow Search Engine")
+st.caption("Инвертированный поисковый индекс через TCP Сетевой Демон (C бэкенд)")
 
 col_left, col_right = st.columns([3, 1])
 
@@ -42,49 +16,50 @@ with col_left:
     query = st.text_input("Поисковый запрос", placeholder="python list sort")
 
 with col_right:
-    tree_type = st.selectbox("Структура данных", ["avl", "rb", "btree"])
+    tree_type = st.selectbox("Структура данных индекса", ["avl", "rb", "btree"])
 
-search_clicked = st.button("Найти", use_container_width=True)
+def send_query_to_server(tree_type, query_text):
+    payload = {
+        "tree_type": tree_type,
+        "query": query_text
+    }
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(10.0)
+        s.connect((SERVER_HOST, SERVER_PORT))
+        s.sendall(json.dumps(payload).encode('utf-8'))
+        
+        response_bytes = b""
+        while True:
+            chunk = s.recv(8192)
+            if not chunk:
+                break
+            response_bytes += chunk
+            if b"\n" in chunk:
+                break
+        s.close()
+        return json.loads(response_bytes.decode('utf-8'))
+    except Exception as e:
+        return {"status": "error", "message": f"Ошибка соединения с C-сервером: {e}"}
 
-if search_clicked:
-    if not query.strip():
-        st.warning("Введите запрос")
-    elif not APP_BINARY.exists():
-        st.error(f"Бинарник не найден: {APP_BINARY}\nСоберите проект: `make app`")
+if query:
+    with st.spinner("Запрос обрабатывается C-сервером..."):
+        t0 = time.monotonic()
+        data = send_query_to_server(tree_type, query)
+        wall_ms = (time.monotonic() - t0) * 1000
+
+    if data.get("status") == "error" or "results" not in data:
+        st.error(data.get("message", "Неверный формат ответа от сервера."))
     else:
-        with st.spinner("Поиск..."):
-            t0 = time.monotonic()
-            proc = subprocess.run(
-                [str(APP_BINARY), "search", f"--type={tree_type}", "--json", query],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            wall_ms = (time.monotonic() - t0) * 1000
+        total = data.get("total", 0)
+        idx_ms = data.get("time_ms", wall_ms)
+        results = data.get("results", [])
 
-        if proc.returncode != 0:
-            st.error(f"Ошибка выполнения:\n```\n{proc.stderr}\n```")
+        st.write(f"**Найдено результатов:** {total} | **Время поиска:** {idx_ms:.2f} мс (Сеть + Рендеринг: {wall_ms:.2f} мс)")
+
+        if not results:
+            st.info("По вашему запросу ничего не найдено.")
         else:
-            data: dict = {}
-            try:
-                data = json.loads(proc.stdout)
-            except json.JSONDecodeError:
-                st.error(
-                    f"Не удалось распарсить вывод программы:\n```\n{proc.stdout[:500]}\n```"
-                )
-                st.stop()
-
-            total   = data.get("total", 0)
-            idx_ms  = data.get("time_ms", wall_ms)
-            results = data.get("results", [])
-
-            st.write(f"**Найдено:** {total} документов &nbsp;|&nbsp; **Время:** {idx_ms:.1f} мс")
-
-            if not results:
-                st.info("Ничего не найдено")
-            else:
-                for i, r in enumerate(results[:10], 1):
-                    with st.expander(f"{i}. {r.get('title', '—')}"):
-                        cols = st.columns([1, 1])
-                        cols[0].write(f"**Doc ID:** {r.get('doc_id', '—')}")
-                        cols[1].write(f"**Score:** {r.get('score', '—')}")
+            for i, r in enumerate(results[:10], 1):
+                with st.expander(f"{i}. {r.get('title')} (ID документа: {r.get('doc_id')})"):
+                    st.write(f"**Вычисленный Score релевантности:** {r.get('score')}")
