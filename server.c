@@ -17,7 +17,7 @@ Index* index_rb    = NULL;
 Index* index_btree = NULL;
 
 // Простой парсинг JSON запроса от Streamlit
-void parse_request_json(const char* json, char* query_out, char* type_out) {
+void parse_request_json(const char* json, char* query_out, char* type_out, char* search_type) {
     char* q = strstr(json, "\"query\"");
     if (q) {
         q = strchr(q, ':');
@@ -48,6 +48,21 @@ void parse_request_json(const char* json, char* query_out, char* type_out) {
             }
         }
     }
+    char* t = strstr(json, "\"search_type\"");
+    if (t) {
+        t = strchr(t, ':');
+        if (t) {
+            t = strchr(t, '"');
+            if (t) {
+                t++;
+                char* end = strchr(t, '"');
+                if (end) {
+                    strncpy(search_type, t, end - t);
+                    search_type[end - t] = '\0';
+                }
+            }
+        }
+    }
 }
 
 void handle_client(int client_socket) {
@@ -60,7 +75,8 @@ void handle_client(int client_socket) {
 
     char query[256] = {0};
     char tree_type[32] = {0};
-    parse_request_json(buffer, query, tree_type);
+    char search_type[32] = {0};
+    parse_request_json(buffer, query, tree_type, search_type);
 
     // Пишем логи в stderr, чтобы они сразу без буферизации падали в server.log
     fprintf(stderr, "[Сервер] Поиск: %s (Движок: %s)\n", query, tree_type);
@@ -78,7 +94,12 @@ void handle_client(int client_socket) {
         send(client_socket, error_msg, strlen(error_msg), 0);
     } else {
         // 1. Вызываем поисковый движок
-        SearchResults* sr = search(current_index, query);
+        if (strcmp(search_type, "normal") == 0) {
+            SearchResults* sr = search(current_index, query);
+        }
+        else {
+            SearchResults* sr = fuzzySearch(current_index, query);
+        }
         
         // 2. Создаем дубликат дескриптора сокета для работы через файловый поток Си
         int socket_dup = dup(client_socket);
