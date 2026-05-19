@@ -11,12 +11,12 @@
 #define PORT 8080
 #define BUFFER_SIZE 65536
 
-// Глобальные указатели на индексы для каждого типа дерева
+// Глобальные указатели на индексы
 Index* index_avl   = NULL;
 Index* index_rb    = NULL;
 Index* index_btree = NULL;
 
-// Вспомогательная функция парсинга входящего JSON
+// Простой парсинг JSON запроса от Streamlit
 void parse_request_json(const char* json, char* query_out, char* type_out) {
     char* q = strstr(json, "\"query\"");
     if (q) {
@@ -62,7 +62,7 @@ void handle_client(int client_socket) {
     char tree_type[32] = {0};
     parse_request_json(buffer, query, tree_type);
 
-    printf("[Сервер] Запрос: тип дерева = %s, запрос = \"%s\"\n", tree_type, query);
+    printf("[Сервер] Поиск: %s (Движок: %s)\n", query, tree_type);
 
     Index* current_index = index_avl;
     if (strcmp(tree_type, "rb") == 0) {
@@ -79,37 +79,30 @@ void handle_client(int client_socket) {
     memset(response_json, 0, BUFFER_SIZE);
 
     if (!current_index) {
-        snprintf(response_json, BUFFER_SIZE, "{\"status\":\"error\",\"message\":\"Index not loaded\"}\n");
+        snprintf(response_json, BUFFER_SIZE, "{\"status\":\"error\",\"message\":\"Индекс не загружен на сервере\"}\n");
     } else {
-        // Выполняем поиск через твою функцию
+        // 1. Вызываем твой родной поиск
         SearchResults* sr = search(current_index, query);
         
-        // Открываем поток в памяти для записи JSON вывода
+        // 2. Перехватываем stdout в буфер response_json через fmemopen
         FILE* mem_stream = fmemopen(response_json, BUFFER_SIZE - 2, "w");
         if (mem_stream) {
-            printResultsJSON(sr);
-            // Так как printResultsJSON жестко пишет в stdout, нам нужно перенаправить вывод, 
-            // либо, поскольку твоя printResultsJSON вызывает внутренний вывод, мы используем подмену stdout:
-            // Чтобы не усложнять дескрипторы, перепишем вывод под mem_stream, если printResultsJSON умеет принимать FILE*.
-            // Согласно твоей search.h: printResultsJSON(const SearchResults* sr) пишет в stdout.
-            // Сделаем элегантный трюк с захватом stdout на время вызова функции:
-            
             fflush(stdout);
-            int stdout_dup = dup(1);
+            int stdout_dup = dup(1);      // Сохраняем реальный stdout
             int mem_fd = fileno(mem_stream);
-            dup2(mem_fd, 1);
+            dup2(mem_fd, 1);              // Подменяем stdout потоком в памяти
             
-            printResultsJSON(sr);
+            printResultsJSON(sr);         // Твоя функция пишет в stdout (то есть в память)
             
             fflush(stdout);
-            dup2(stdout_dup, 1);
+            dup2(stdout_dup, 1);          // Возвращаем stdout на место
             close(stdout_dup);
             fclose(mem_stream);
         }
         freeSearchResults(sr);
     }
 
-    // Гарантируем корректное завершение строки для Python-клиента
+    // Дописываем \n, чтобы Python понимал, где конец пакета
     size_t len = strlen(response_json);
     if (len > 0 && response_json[len - 1] != '\n') {
         strcat(response_json, "\n");
@@ -125,7 +118,7 @@ int main() {
     index_avl   = loadIndex("data/test/idx_avl.txt", TREE_AVL);
     index_rb    = loadIndex("data/test/idx_rb.txt", TREE_RB);
     index_btree = loadIndex("data/test/idx_btree.txt", TREE_BTREE);
-    printf("[Старт] Все доступные индексы успешно загружены в память!\n");
+    printf("[Старт] Загрузка завершена. Сервер готов к работе.\n");
 
     int server_fd, new_socket;
     struct sockaddr_in address;
@@ -151,7 +144,7 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    printf("[Сервер] Сетевой движок поиска запущен на порту %d...\n", PORT);
+    printf("[Сервер] Слушает TCP порт %d...\n", PORT);
 
     while (1) {
         if ((new_socket = accept(server_fd, (struct sockaddr*)&address, (socklen_t*)&addrlen)) < 0) {
